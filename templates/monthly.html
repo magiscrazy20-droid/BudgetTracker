@@ -1,0 +1,202 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h2>Monthly Expenses - {{ month_label }}</h2>
+            <div class="d-flex gap-2">
+                <a class="btn btn-outline-secondary" href="{{ url_for('monthly', year=prev_year, month=prev_month) }}">Prev</a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('monthly', year=next_year, month=next_month) }}">Next</a>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Daily Totals</span>
+                <small class="text-muted">Line Chart</small>
+            </div>
+            <div class="card-body" style="height:240px">
+                <canvas id="dailyChart"></canvas>
+            </div>
+        </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const ctx = document.getElementById('dailyChart').getContext('2d');
+                const days = {{ days | map(attribute='day') | list | tojson }};
+                const totals = {{ days | map(attribute='total') | list | tojson }};
+                
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: days,
+                        datasets: [{
+                            label: 'Daily Spending (₹)',
+                            data: totals,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            });
+        </script>
+
+        <form method="get" class="row g-3 align-items-center mb-4">
+            <div class="col-12 col-md-auto">
+                <label for="ym" class="col-form-label">Select Month</label>
+            </div>
+            <div class="col-12 col-md-auto">
+                <input type="month" id="ym" name="ym" class="form-control" value="{{ '%04d-%02d'|format(year, month) }}">
+            </div>
+            <div class="col-12 col-md-auto">
+                <button type="submit" class="btn btn-primary">Go</button>
+            </div>
+        </form>
+
+        <div class="table-responsive mb-4">
+            <table class="table table-striped table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th style="width: 10%;">Day</th>
+                        <th style="width: 30%;">Date</th>
+                        <th style="width: 20%;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in days %}
+                    <tr>
+                        <td>{{ d.day }}</td>
+                        <td><a href="#" class="date-link" data-date="{{ d.date }}" data-target="day-{{ d.date }}">{{ d.date }}</a></td>
+                        <td>₹{{ '%.2f'|format(d.total) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Expenses By Day</h4>
+        {% if grouped_expenses %}
+            {% for group in grouped_expenses %}
+                <div id="day-{{ group['date'] }}" class="card mb-3 day-card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span>{{ group['date'] }}</span>
+                        <span>₹{{ '%.2f'|format(group['total']) }}</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 20%;">Category</th>
+                                        <th>Description</th>
+                                        <th style="width: 15%;">Amount</th>
+                                        <th style="width: 10%;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for e in group['items'] %}
+                                    <tr>
+                                        <td><span class="badge bg-secondary">{{ e['category'] }}</span></td>
+                                        <td>{{ e['description'] }}</td>
+                                        <td>₹{{ '%.2f'|format(e['amount']) }}</td>
+                                        <td>
+                                            <form action="{{ url_for('delete_expense', id=e['id']) }}" method="post" onsubmit="return confirm('Delete this expense?');">
+                                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted">No expenses recorded for this month.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    const daysData = {{ days|tojson }};
+    const monthlyTotal = {{ monthly_total|tojson }};
+    const labels = daysData.map(d => d.day);
+    const totals = daysData.map(d => d.total);
+    const ctx = document.getElementById('dailyChart');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: `Amount (₹${monthlyTotal.toFixed(2)})`,
+                data: totals,
+                tension: 0.3,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59,130,246,0.15)',
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: true } },
+            scales: { y: { beginAtZero: true }, x: { grid: { display: false } } }
+        }
+    });
+
+    function showOnlyDay(targetId) {
+        const cards = document.querySelectorAll('.day-card');
+        cards.forEach(c => {
+            if (c.id === targetId) {
+                c.classList.remove('d-none');
+                c.classList.add('border-primary');
+            } else {
+                c.classList.add('d-none');
+                c.classList.remove('border-primary');
+            }
+        });
+        let reset = document.getElementById('reset-days');
+        if (!reset) {
+            reset = document.createElement('button');
+            reset.id = 'reset-days';
+            reset.className = 'btn btn-sm btn-outline-secondary mb-3';
+            reset.textContent = 'Show all days';
+            const heading = document.querySelector('h4');
+            heading.parentNode.insertBefore(reset, heading.nextSibling);
+            reset.addEventListener('click', () => {
+                cards.forEach(c => {
+                    c.classList.remove('d-none');
+                    c.classList.remove('border-primary');
+                });
+                reset.remove();
+            });
+        }
+        document.getElementById(targetId).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.querySelectorAll('.date-link').forEach(a => {
+        a.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetId = a.getAttribute('data-target');
+            showOnlyDay(targetId);
+        });
+    });
+</script>
+{% endblock %}
+
