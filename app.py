@@ -6,8 +6,8 @@ import functools
 import os
 
 app = Flask(__name__)
-app.secret_key = 'super_secret_key_for_demo'
-DB_NAME = 'budget_tracker.db'
+app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_demo')
+DB_NAME = os.environ.get('DB_PATH', 'budget_tracker.db')
 
 def reset_db():
     try:
