@@ -87,6 +87,10 @@ def login_required(view):
 def inject_user():
     return dict(current_user=session.get('user_id'))
 
+@app.route('/health', methods=('GET',))
+def health():
+    return 'OK', 200
+
 @app.route('/login', methods=('GET', 'POST'))
 def login():
     if request.method == 'POST':
